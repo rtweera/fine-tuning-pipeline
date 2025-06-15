@@ -1,0 +1,10 @@
+# Paths to data folders
+train_dir: data/01. train
+validation_dir: data/02. validation
+test_dir: data/03. test
+models_dir: data/04. models
+model_results_dir: data/05. model-results
+other_results_dir: data/06. other-results
+eval_results_dir: data/07. eval-results
+eval_summary_dir: data/08. eval-summary
+conclusions_dir: data/09. conclusions
