@@ -1,6 +1,8 @@
 defaults:
   - _self_
   - paths
+  - tuning
+  - model
 
 hydra:
   run:

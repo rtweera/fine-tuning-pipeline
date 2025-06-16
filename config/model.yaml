@@ -1,0 +1,8 @@
+# Always update to the new/expecting version
+model:
+  version: "0.0.0.0"
+  id: 0
+  description: |
+    This is a placeholder for the model configuration. It should be updated with the actual model details.
+  tags:
+    - placeholder

@@ -1,0 +1,46 @@
+tuning:
+  model_key: "7b"
+  max_seq_length: 4096
+  dtype: null
+  load_in_4bit: true
+  rank: 16
+  dataset_id: null
+  dataset_columns: ["question", "answer", "topic"]  # TODO: change this to drop all the unnecessary columns
+  user_column: null
+  assistant_column: null
+  system_column: null # if set, uses the system column in dataset as the system prompt (i.e. instruction) to the model. Keep this null to stop providing the system prompt
+  system_prompt: null # If set, by passes the system column and uses this as the system prompt
+  wandb_run_name_prefix: null
+  wandb_run_name_suffix: null
+  wandb_project_name: "choreo-doc-assistant-lora"
+  device_batch_size: 4
+  grad_accumulation: 4
+  epochs: 30
+  logger_log_interval_seconds: 60
+  learning_rate: 0.0002
+  warmup_steps: 5
+  optim: "paged_adamw_8bit"
+  weight_decay: 0.01
+  lr_scheduler_type: "linear"
+  seed: 3407
+  logging_steps: 1
+  logging_first_step: true
+  save_steps: 20
+  save_total_limit: 4
+  push_to_hub: true
+  packing: false
+  dataset_num_proc: 4
+  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+  lora_alpha: 16
+  lora_dropout: 0
+  bias: "none"
+  use_gradient_checkpointing: "unsloth"
+  use_rslora: false
+  loftq_config: null
+  instruction_part: "<|im_start|>user\n"
+  response_part: "<|im_start|>assistant\n"
+
+models: # More models at https://huggingface.co/unsloth
+    0.5b: "unsloth/Qwen2.5-0.5B-Instruct-unsloth-bnb-4bit"
+    3b: "unsloth/Qwen2.5-3B-Instruct-unsloth-bnb-4bit"
+    7b: "unsloth/Qwen2.5-7B-Instruct-unsloth-bnb-4bit"
