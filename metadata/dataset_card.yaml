@@ -1,0 +1,42 @@
+---
+dataset_name: aiwiki-augmented-qa
+id: 0420-train-2.0.1.0
+version: 2.0.1.0
+split: train
+
+source: Wikipedia Dump (March 2024)
+subsource: Filtered for AI articles
+generation_method: Prompted GPT-4 QA pair extraction
+minor_improvements:
+  - Corrected malformed JSON
+  - Normalized quote formatting
+  - Improved prompt coverage for context diversity
+
+num_samples: 128000
+features:
+  - title
+  - context
+  - question
+  - answer
+
+preprocessing:
+  - deduplication
+  - length filtering
+  - NER redaction
+
+labeling_method: LLM + human validation
+
+class_distribution:
+  open-domain: 70
+  code-related: 30
+
+tags:
+  - Wikipedia
+  - GPT-augmented
+  - QA
+  - Open-domain
+
+created_by: Ravindu Weerasinghe
+created_at: 2025-06-16T20:12:00+05:30
+license: cc-by-sa-4.0
+---
