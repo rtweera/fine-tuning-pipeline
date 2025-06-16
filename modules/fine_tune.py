@@ -133,8 +133,8 @@ class FineTune:
             instruction_part = example[self.system_column].strip()
         else:
             instruction_part = None
-        user_part = example['question'].strip()
-        assistant_part = example['answer'].strip()
+        user_part = example[self.user_column].strip()
+        assistant_part = example[self.assistant_column].strip()
         output = {
             "conversations": [
                 {"role": "user", "content": user_part},
