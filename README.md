@@ -5,6 +5,11 @@
 This repository provides a pipeline for fine-tuning language models using the `uv` framework. It includes scripts for data preparation, model training, and evaluation.
 
 ### 1. Install dependencies
+## Setup
+
+This repository provides a pipeline for fine-tuning language models using the `uv` framework. It includes scripts for data preparation, model training, and evaluation.
+
+### 1. Install dependencies
 
 - Ensure you have `uv` installed:
 
