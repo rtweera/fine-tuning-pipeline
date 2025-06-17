@@ -39,7 +39,9 @@ tuning:
   loftq_config: null
   instruction_part: "<|im_start|>user\n"
   response_part: "<|im_start|>assistant\n"
-
+  online_logger_interval_seconds: 60
+  online_logger_log_level: "info"
+  
 models: # More models at https://huggingface.co/unsloth
     0.5b: "unsloth/Qwen2.5-0.5B-Instruct-unsloth-bnb-4bit"
     3b: "unsloth/Qwen2.5-3B-Instruct-unsloth-bnb-4bit"

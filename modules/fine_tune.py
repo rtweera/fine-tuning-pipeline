@@ -3,11 +3,13 @@ from unsloth import FastLanguageModel, is_bfloat16_supported # type: ignore
 from unsloth.chat_templates import get_chat_template, train_on_responses_only # type: ignore
 
 # import torch
+import datasets
 import os
 import sys
 import wandb
+import pandas as pd
 
-from datasets import load_dataset
+from datasets import Dataset
 from huggingface_hub import login
 from omegaconf import DictConfig
 from trl import SFTTrainer
@@ -70,10 +72,16 @@ class FineTune:
         self.loftq_config = tuning_config.loftq_config
         self.instruction_part = tuning_config.instruction_part
         self.response_part = tuning_config.response_part
+        self.online_logger_interval_seconds = tuning_config.online_logger_interval_seconds
+        self.online_logger_log_level = tuning_config.online_logger_log_level
+        self.train_dir = paths_config.train_dir
+        self.validation_dir = paths_config.validation_dir
+        self.models_dir = paths_config.models_dir
 
-        # Initialize model and tokenizer
-        self.model, self.tokenizer = self._load_base_model_and_tokenizer()
-        self.model = self._get_peft_model()
+        # Constants
+        self.CONVERSATIONS_KEY = "conversations"  # Key for conversations when transforming dataset (refer to _convert_to_conversations method)
+        self.TEXTS_KEY = "text"  # Key for text when formatting prompts (refer to _formatting_prompts_func method)
+
 
     def _load_base_model_and_tokenizer(self) -> tuple[FastLanguageModel, PreTrainedTokenizerBase]:
         """
@@ -136,13 +144,13 @@ class FineTune:
         user_part = example[self.user_column].strip()
         assistant_part = example[self.assistant_column].strip()
         output = {
-            "conversations": [
+            self.CONVERSATIONS_KEY: [
                 {"role": "user", "content": user_part},
                 {"role": "assistant", "content": assistant_part}
             ]
         }
         if instruction_part is not None:
-            output["conversations"].insert(0, {"role": "system", "content": instruction_part})
+            output[self.CONVERSATIONS_KEY].insert(0, {"role": "system", "content": instruction_part})
         return output
 
 
@@ -163,13 +171,13 @@ class FineTune:
             }
         """
         self.logger.info("Formatting prompts for training...")
-        convos = examples['conversations']
+        convos = examples[self.CONVERSATIONS_KEY]
         if not hasattr(self.tokenizer, 'apply_chat_template'):
             # TODO: What to do if tokenizer does not have apply_chat_template method?
             raise ValueError("Tokenizer does not have 'apply_chat_template' method. Ensure you are using a compatible tokenizer.")
         texts = [self.tokenizer.apply_chat_template(convo, tokenize = False, add_generation_prompt = False) for convo in convos]
         # NOTE: Why do we put add_generation_prompt=False? Because we are not generating text here? Look it up
-        return { "text" : texts, }
+        return { self.TEXTS_KEY : texts, }
         
 
     def _handle_wandb_setup(self):
@@ -201,19 +209,49 @@ class FineTune:
         login(token=os.getenv("HF_TOKEN"))
         self.logger.info("Hugging Face login successful.")
 
+    def _load_local_dataset(self, data_dir):
+        """
+        Load a dataset from a local directory. Assumes there is one file in the directory.
+        Returns a pandas DataFrame.
+        """
+        files = [f for f in os.listdir(data_dir) if os.path.isfile(os.path.join(data_dir, f))]
+        if not files:
+            raise FileNotFoundError(f"No data file found in {data_dir}")
+        file_path = os.path.join(data_dir, files[0])
+        self.logger.info(f"Loading data from {file_path}")
+        if file_path.endswith('.csv'):
+            return pd.read_csv(file_path)
+        elif file_path.endswith('.json') or file_path.endswith('.jsonl'):
+            return pd.read_json(file_path, lines=True)
+        else:
+            raise ValueError(f"Unsupported file format: {file_path}")
+
+    def _convert_df_to_hf_dataset(self, df) -> datasets.arrow_dataset.Dataset:
+        return Dataset.from_pandas(df)
+
     def run(self):
         """
         Run the fine-tuning process.
         Returns:
             TrainerStats: The statistics from the training process.
         """
-        # Load and process dataset
-        self._login_huggingface()
-        self.logger.info("Loading and processing dataset...")
-        # TODO: Make this such that it can handle multiple datasets as once
-        dataset = load_dataset(self.dataset_id, split = "train")
-        dataset = dataset.map(self._convert_to_conversations, remove_columns=self.dataset_columns, batched=False)
-        dataset = dataset.map(self._formatting_prompts_func, batched=True)
+        # Load local training and validation data
+        train_df = self._load_local_dataset(self.train_dir)
+        val_df = self._load_local_dataset(self.validation_dir)
+        train_dataset = self._convert_df_to_hf_dataset(train_df)
+        val_dataset = self._convert_df_to_hf_dataset(val_df)
+
+        # Initialize model and tokenizer
+        self.logger.info("Initializing model and tokenizer...")
+        self.model, self.tokenizer = self._load_base_model_and_tokenizer()
+        self.model = self._get_peft_model()
+
+        # Data operations
+        # strip doesnt work with batched=True, so we use batched=False
+        train_dataset = train_dataset.map(self._convert_to_conversations, remove_columns=self.dataset_columns, batched=False)   
+        train_dataset = train_dataset.map(self._formatting_prompts_func, batched=True)
+        val_dataset = val_dataset.map(self._convert_to_conversations, remove_columns=self.dataset_columns, batched=False)
+        val_dataset = val_dataset.map(self._formatting_prompts_func, batched=True)
 
         self._handle_wandb_setup()
 
@@ -222,8 +260,9 @@ class FineTune:
         trainer = SFTTrainer(
             model = self.model,
             tokenizer = self.tokenizer,
-            train_dataset = dataset,
-            dataset_text_field = "text",
+            train_dataset = train_dataset,
+            eval_dataset = val_dataset,
+            dataset_text_field = self.TEXTS_KEY,
             max_seq_length = self.max_seq_length,
             data_collator = DataCollatorForSeq2Seq(tokenizer = self.tokenizer),
             dataset_num_proc = self.dataset_num_proc,
@@ -242,7 +281,7 @@ class FineTune:
                 weight_decay = self.weight_decay,
                 lr_scheduler_type = self.lr_scheduler_type,
                 seed = self.seed,
-                output_dir = self.run_name,
+                output_dir = self.models_dir,  # Save checkpoints and outputs to local models dir
                 report_to = self.report_to,
                 save_steps=self.save_steps,
                 save_total_limit=self.save_total_limit,
