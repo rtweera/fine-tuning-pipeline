@@ -3,6 +3,7 @@ defaults:
   - paths
   - tuning
   - model
+  - running
 
 hydra:
   run:

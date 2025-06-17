@@ -176,7 +176,7 @@ class FineTune:
             # TODO: What to do if tokenizer does not have apply_chat_template method?
             raise ValueError("Tokenizer does not have 'apply_chat_template' method. Ensure you are using a compatible tokenizer.")
         texts = [self.tokenizer.apply_chat_template(convo, tokenize = False, add_generation_prompt = False) for convo in convos]
-        # NOTE: Why do we put add_generation_prompt=False? Because we are not generating text here? Look it up
+        # NOTE:No need for generation prompt when training
         return { self.TEXTS_KEY : texts, }
         
 
